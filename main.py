@@ -1,13 +1,9 @@
 import sqlite3
-import requests
 import time
-import traceback
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
+from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 
 if __name__ == '__main__':
-
     #Initialize the database
     try:
         db = sqlite3.connect('jobs.db')
@@ -17,41 +13,18 @@ if __name__ == '__main__':
         quit()
 
     #Initialize the driver and url
-    #search_query = 'nvidia corporation'
     search_query = input('Search Query : ')
     base_url = 'https://www.naukri.com/'
     url = base_url + f"{search_query.replace(' ','-')}-jobs?k={search_query}"
-    options = Options()
-    options.headless = True
-    driver = webdriver.Firefox(options=options, executable_path='./geckodriver')
-    print("Driver Initialized")
+    session = HTMLSession()
+    print("Starting the scraper")
     jobUrls = []
 
-    #Scrape the first page
-
-    # headers = {
-    # 'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    # 'Accept-Encoding':'gzip, deflate, br',
-    # 'Accept-Language':'en-US,en;q=0.5',
-    # 'Cache-Control':'max-age=0',
-    # 'Connection':'keep-alive',
-    # 'Host':'www.naukri.com',
-    # 'Referer':'https://www.naukri.com/python-jobs?k=python',
-    # 'TE':'Trailers',
-    # 'Upgrade-Insecure-Requests':'1',
-    # 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:84.0) Gecko/20100101 Firefox/84.0'
-    # }
-    #
-    # response = requests.get(url,headers=headers)
-    # soup = BeautifulSoup(response.content, 'lxml')
-    # print(soup.body.prettify())
-    # quit()
-
-    driver.get(url)
-    time.sleep(2)
+    r = session.get(url)
+    r.html.render()
+    soup = BeautifulSoup(r.html.raw_html, 'lxml')
     print("Recieved the response for job listings")
     print(f"On Page 1")
-    soup = BeautifulSoup(driver.page_source, 'lxml')
     job_list = soup.find('div', class_='list')
     jobUrls.extend(zip(
         [it['data-job-id'] for it in job_list.find_all('article',class_='jobTuple bgWhite br4 mb-8')],
@@ -63,14 +36,15 @@ if __name__ == '__main__':
     for page in range(2,4):
         print(f"On Page {page}")
         url = base_url + f"{search_query.replace(' ','-')}-jobs-{page}?k={search_query}"
-        driver.get(url)
-        time.sleep(2)
-        soup = BeautifulSoup(driver.page_source, 'lxml')
+        r = session.get(url)
+        r.html.render()
+        soup = BeautifulSoup(r.html.raw_html, 'lxml')
         job_list = soup.find('div', class_='list')
+        jb_ls_a = job_list.find_all('a', class_='title fw500 ellipsis')
         jobUrls.extend(zip(
             [it['data-job-id'] for it in job_list.find_all('article',class_='jobTuple bgWhite br4 mb-8')],
-            [it['href'] for it in job_list.find_all('a', class_='title fw500 ellipsis')],
-            [it['title'] for it in job_list.find_all('a', class_='title fw500 ellipsis')]
+            [it['href'] for it in jb_ls_a],
+            [it['title'] for it in jb_ls_a]
         ))
 
     cnt = 1
@@ -78,9 +52,9 @@ if __name__ == '__main__':
     #Iterate through all the Job URLs
     print("Iterating through job URLs")
     for job_url in jobUrls:
-        driver.get(job_url[1])
-        time.sleep(2)
-        soup = BeautifulSoup(driver.page_source, 'lxml')
+        r = session.get(job_url[1])
+        r.html.render()
+        soup = BeautifulSoup(r.html.raw_html, 'lxml')
         try :
             job_id = job_url[0]
             job_link = job_url[1]
@@ -93,9 +67,8 @@ if __name__ == '__main__':
             job_type = soup.find('div',class_='other-details').select('div.details:nth-child(4) > span:nth-child(2) > span:nth-child(1)')[0].text
             job_experience = soup.find('div', class_='exp').find('span').text
         except Exception as e:
-            print(f"Error Occurred {e}")
+            print(f"Error - Custom Webpage")
             print(f"Job url = {job_link}")
-            traceback.print_exc()
             continue
         try:
             db.execute(
