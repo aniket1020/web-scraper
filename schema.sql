@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS JOBS;
 CREATE TABLE JOBS (
-    job_id int primary key,
+    job_id varchar(1000) DEFAULT 'N/A',
+    job_topic varchar(1000) DEFAULT 'N/A',
     job_link varchar(1000) DEFAULT 'N/A',
     job_title varchar(1000) DEFAULT 'N/A',
     job_description varchar(1000) DEFAULT 'N/A',
