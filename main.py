@@ -27,6 +27,56 @@ if __name__ == '__main__':
         url = base_url + f"{search_query.replace(' ','-')}-jobs?k={search_query}"
         print("Starting the scraper")
 
+        #Searching Naukri.com
+        print("---> On Naukri.com <---")
+        jobUrls = []
+        r = session.get(url)
+        r.html.render()
+        soup = BeautifulSoup(r.html.raw_html, 'lxml')
+        print("Recieved the response for job listings")
+        print("On Page 1")
+        try:
+            job_list = soup.find('div', class_='list')
+            jb_ls_a = job_list.find_all('a', class_='title fw500 ellipsis')
+            jobUrls.extend(zip(
+                [it['data-job-id'] for it in job_list.find_all('article',class_='jobTuple bgWhite br4 mb-8')],
+                [it['href'] for it in jb_ls_a],
+                [it['title'] for it in jb_ls_a]
+            ))
+        except Exception as e:
+            print(f"Error Occurred : {e}")
+        #Iterate through all the Job URLs
+        print("Iterating through job URLs")
+        for job_url in jobUrls:
+            r = session.get(job_url[1])
+            r.html.render()
+            soup = BeautifulSoup(r.html.raw_html, 'lxml')
+            try :
+                job_id = job_url[0]
+                job_link = job_url[1]
+                job_title = job_url[2]
+                job_description = soup.find('div',class_='dang-inner-html').text
+                job_requirement = ', '.join([it.find('span').text for it in soup.find('div',class_='key-skill').findChildren('a')])
+                job_location = soup.find('span',class_='location').find('a').text
+                job_salary = soup.find('div',class_='salary').find('span').text
+                job_qualification = soup.find('div',class_='education').text
+                job_type = soup.find('div',class_='other-details').select('div.details:nth-child(4) > span:nth-child(2) > span:nth-child(1)')[0].text
+                job_experience = soup.find('div', class_='exp').find('span').text
+            except Exception as e:
+                print(f"Error - Custom Webpage")
+                print(f"Job url = {job_link}")
+                continue
+            try:
+                db.execute(
+                    'INSERT INTO JOBS values (?,?,?,?,?,?,?,?,?,?,?)',
+                    (job_id,search_query,job_link,job_title,job_description,job_requirement,job_location,job_salary,job_qualification,job_type,job_experience)
+                )
+                db.commit()
+            except Exception as e:
+                print(f"Error Occurred while inserting into the database : {e}")
+                continue
+            print("Added successfully")
+
         #Searching Indeed
         print("---> On Indeed.com <---")
         jobUrls = []
@@ -119,52 +169,5 @@ if __name__ == '__main__':
                 continue
             print("Added successfully")
 
-        #Searching Naukri.com
-        print("---> On Naukri.com <---")
-        jobUrls = []
-        r = session.get(url)
-        r.html.render()
-        soup = BeautifulSoup(r.html.raw_html, 'lxml')
-        print("Recieved the response for job listings")
-        print("On Page 1")
-        job_list = soup.find('div', class_='list')
-        jb_ls_a = job_list.find_all('a', class_='title fw500 ellipsis')
-        jobUrls.extend(zip(
-            [it['data-job-id'] for it in job_list.find_all('article',class_='jobTuple bgWhite br4 mb-8')],
-            [it['href'] for it in jb_ls_a],
-            [it['title'] for it in jb_ls_a]
-        ))
-
-        #Iterate through all the Job URLs
-        print("Iterating through job URLs")
-        for job_url in jobUrls:
-            r = session.get(job_url[1])
-            r.html.render()
-            soup = BeautifulSoup(r.html.raw_html, 'lxml')
-            try :
-                job_id = job_url[0]
-                job_link = job_url[1]
-                job_title = job_url[2]
-                job_description = soup.find('div',class_='dang-inner-html').text
-                job_requirement = ', '.join([it.find('span').text for it in soup.find('div',class_='key-skill').findChildren('a')])
-                job_location = soup.find('span',class_='location').find('a').text
-                job_salary = soup.find('div',class_='salary').find('span').text
-                job_qualification = soup.find('div',class_='education').text
-                job_type = soup.find('div',class_='other-details').select('div.details:nth-child(4) > span:nth-child(2) > span:nth-child(1)')[0].text
-                job_experience = soup.find('div', class_='exp').find('span').text
-            except Exception as e:
-                print(f"Error - Custom Webpage")
-                print(f"Job url = {job_link}")
-                continue
-            try:
-                db.execute(
-                    'INSERT INTO JOBS values (?,?,?,?,?,?,?,?,?,?,?)',
-                    (job_id,search_query,job_link,job_title,job_description,job_requirement,job_location,job_salary,job_qualification,job_type,job_experience)
-                )
-                db.commit()
-            except Exception as e:
-                print(f"Error Occurred while inserting into the database : {e}")
-                continue
-            print("Added successfully")
         print(f"Scraper completed for query {search_query}")
     print("Scraping Completed")
